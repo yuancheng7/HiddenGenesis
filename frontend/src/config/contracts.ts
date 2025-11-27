@@ -1,5 +1,5 @@
 // ConfidentialTokenFactory deployment on Sepolia (update address after deployment)
-export const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001' as const;
+export const CONTRACT_ADDRESS = '0x6140e756Fc548c3e1748bf312562Ec88c41118B5' as const;
 
 // ABI copied from deployments/sepolia/ConfidentialTokenFactory.json
 export const CONTRACT_ABI = [
