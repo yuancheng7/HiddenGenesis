@@ -1,110 +1,127 @@
-# FHEVM Hardhat Template
+# Hidden Genesis – Confidential ERC7984 Token Factory
 
-A Hardhat-based template for developing Fully Homomorphic Encryption (FHE) enabled Solidity smart contracts using the
-FHEVM protocol by Zama.
+Hidden Genesis lets anyone mint their own confidential ERC7984 tokens powered by Zama’s FHE rails. A factory contract deploys new tokens with encrypted balances, records every deployment on-chain, and a React/Vite front end exposes the full workflow on Sepolia without mocks or localhost dependencies.
 
-## Quick Start
+## What this solves
+- Self-service confidential token launches: creators choose name, symbol, and optional initial supply (defaults to 1,000,000,000) and receive a fresh ERC7984 token.
+- On-chain registry: every deployment is indexed by the factory so users can read all tokens or filter by creator.
+- Production-ready references: contracts, deployment scripts, tasks, tests, and a connected front end wired to the real factory ABI.
+- No data leaks: balances stay encrypted through ERC7984 and Zama’s FHE primitives while remaining tradable on public chains.
 
-For detailed instructions see:
-[FHEVM Hardhat Quick Start Tutorial](https://docs.zama.ai/protocol/solidity-guides/getting-started/quick-start-tutorial)
+## Advantages
+- **FHE-native tokens**: `ConfidentialToken` extends ERC7984 and mints encrypted supply with `FHE.asEuint64`.
+- **Deterministic defaults**: zero supply input mints the canonical 1,000,000,000 tokens to the creator; custom supplies are also supported.
+- **Auditable history**: `TokenCreated` events plus on-chain metadata from `getAllTokens` / `getTokensByCreator` keep a transparent record.
+- **Full-stack delivery**: Hardhat deploy + tasks, unit and Sepolia integration tests, and a live Vite front end using ethers for writes and viem for reads.
+- **Environment-light UI**: the front end is preconfigured for Sepolia without environment variables; contract ABI/address are pulled from deployments.
 
-### Prerequisites
+## Tech stack
+- **Smart contracts**: Solidity 0.8.27, ERC7984 from `confidential-contracts-v91`, FHE primitives from `@fhevm/solidity`.
+- **Frameworks & tooling**: Hardhat + hardhat-deploy, ethers v6, TypeChain, gas reporter, solidity-coverage, Chai/Mocha.
+- **Relayer/FHE infra**: Zama FHEVM plugin (`@fhevm/hardhat-plugin`) and configs from `@fhevm/solidity`.
+- **Frontend**: React 18 + Vite + TypeScript, RainbowKit + wagmi (viem) for reads, ethers for writes, custom CSS (no Tailwind), Sepolia-only network.
 
-- **Node.js**: Version 20 or higher
-- **npm or yarn/pnpm**: Package manager
+## Repository map
+- `contracts/ConfidentialTokenFactory.sol` – deploys new confidential tokens, stores metadata, exposes getters.
+- `contracts/ConfidentialToken.sol` – ERC7984 token with encrypted minting and factory-only mint hook.
+- `deploy/deploy.ts` – hardhat-deploy script that registers the factory.
+- `tasks/` – helper tasks (`task:factory-address`, `task:create-token`, `task:list-tokens`) for CLI flows.
+- `test/` – unit coverage for factory behavior and an opt-in Sepolia integration check.
+- `frontend/` – Vite app that lets users deploy tokens and browse all factory outputs; uses the generated ABI from `deployments/sepolia`.
+- `deployments/sepolia/ConfidentialTokenFactory.json` – source of truth ABI and address to wire into the UI.
 
-### Installation
+## Prerequisites
+- Node.js 20+
+- npm 7+
+- An Infura API key for Sepolia RPC access.
+- A funded EOA private key (hex string) for deployments and task execution. Use `PRIVATE_KEY`; do not use a mnemonic.
 
-1. **Install dependencies**
-
+## Backend setup
+1. Install dependencies:
    ```bash
    npm install
    ```
-
-2. **Set up environment variables**
-
-   ```bash
-   npx hardhat vars set MNEMONIC
-
-   # Set your Infura API key for network access
-   npx hardhat vars set INFURA_API_KEY
-
-   # Optional: Set Etherscan API key for contract verification
-   npx hardhat vars set ETHERSCAN_API_KEY
+2. Create `.env` in the repo root (dotenv is already loaded in `hardhat.config.ts`):
    ```
-
-3. **Compile and test**
-
+   PRIVATE_KEY=0xYourPrivateKeyHere        # required for Sepolia deploys
+   INFURA_API_KEY=your_infura_key          # required for sepolia RPC
+   ETHERSCAN_API_KEY=optional_verify_key   # optional, for contract verification
+   ```
+   The networks config consumes `PRIVATE_KEY` (no mnemonic) and `INFURA_API_KEY`.
+3. Build & test:
    ```bash
    npm run compile
    npm run test
    ```
 
-4. **Deploy to local network**
+## Local development
+- Start a local node (Hardhat FHE-ready):
+  ```bash
+  npm run chain
+  ```
+- Deploy the factory locally:
+  ```bash
+  npm run deploy:localhost
+  ```
+- Interact via tasks:
+  ```bash
+  npx hardhat task:create-token --network localhost --name "Local Token" --symbol LOC --supply 5000
+  npx hardhat task:list-tokens --network localhost
+  ```
 
+## Sepolia deployment
+- Ensure `.env` has `PRIVATE_KEY` and `INFURA_API_KEY`.
+- Deploy:
+  ```bash
+  npm run deploy:sepolia
+  ```
+- Optional verification:
+  ```bash
+  npm run verify:sepolia
+  ```
+- Smoke test against the live factory:
+  ```bash
+  npm run test:sepolia
+  ```
+
+## Contract interactions (CLI)
+- Show the factory address:
+  ```bash
+  npx hardhat task:factory-address --network sepolia
+  ```
+- Create a confidential token (default supply when `--supply 0` or omitted):
+  ```bash
+  npx hardhat task:create-token --network sepolia --name "Genesis" --symbol GNS --supply 2500000
+  ```
+- List every deployment:
+  ```bash
+  npx hardhat task:list-tokens --network sepolia
+  ```
+
+## Frontend usage
+1. Install UI dependencies:
    ```bash
-   # Start a local FHEVM-ready node
-   npx hardhat node
-   # Deploy to local network
-   npx hardhat deploy --network localhost
+   cd frontend
+   npm install
    ```
-
-5. **Deploy to Sepolia Testnet**
-
+2. Wire the live contract:
+   - Copy the factory ABI and address from `../deployments/sepolia/ConfidentialTokenFactory.json`.
+   - Update `frontend/src/config/contracts.ts` with that address and ABI (the UI intentionally avoids env vars).
+3. Run the app:
    ```bash
-   # Deploy to Sepolia
-   npx hardhat deploy --network sepolia
-   # Verify contract on Etherscan
-   npx hardhat verify --network sepolia <CONTRACT_ADDRESS>
+   npm run dev -- --host
    ```
+4. Workflow:
+   - Connect a Sepolia wallet via RainbowKit.
+   - Fill name, symbol (auto uppercased), and optional supply. The default 1,000,000,000 mints to the creator.
+   - After confirmation, the gallery fetches `getAllTokens` and `getTokensByCreator` via viem, displaying every live deployment plus your own list.
 
-6. **Test on Sepolia Testnet**
+## Future plans
+- Add mint/burn/transfer extensions on the confidential token with FHE-aware access controls.
+- Surface per-token analytics (supply, holders) via an indexer instead of direct RPC scanning.
+- Batch deployments and role-based factories for team launches.
+- UI refinements: filtering, search, and notification toasts for confirmations.
+- Optional verifier hooks and relayer support for gas sponsorship once Zama relayer flows are finalized.
 
-   ```bash
-   # Once deployed, you can run a simple test on Sepolia.
-   npx hardhat test --network sepolia
-   ```
-
-## 📁 Project Structure
-
-```
-fhevm-hardhat-template/
-├── contracts/           # Smart contract source files
-│   └── FHECounter.sol   # Example FHE counter contract
-├── deploy/              # Deployment scripts
-├── tasks/               # Hardhat custom tasks
-├── test/                # Test files
-├── hardhat.config.ts    # Hardhat configuration
-└── package.json         # Dependencies and scripts
-```
-
-## 📜 Available Scripts
-
-| Script             | Description              |
-| ------------------ | ------------------------ |
-| `npm run compile`  | Compile all contracts    |
-| `npm run test`     | Run all tests            |
-| `npm run coverage` | Generate coverage report |
-| `npm run lint`     | Run linting checks       |
-| `npm run clean`    | Clean build artifacts    |
-
-## 📚 Documentation
-
-- [FHEVM Documentation](https://docs.zama.ai/fhevm)
-- [FHEVM Hardhat Setup Guide](https://docs.zama.ai/protocol/solidity-guides/getting-started/setup)
-- [FHEVM Testing Guide](https://docs.zama.ai/protocol/solidity-guides/development-guide/hardhat/write_test)
-- [FHEVM Hardhat Plugin](https://docs.zama.ai/protocol/solidity-guides/development-guide/hardhat)
-
-## 📄 License
-
-This project is licensed under the BSD-3-Clause-Clear License. See the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/zama-ai/fhevm/issues)
-- **Documentation**: [FHEVM Docs](https://docs.zama.ai)
-- **Community**: [Zama Discord](https://discord.gg/zama)
-
----
-
-**Built with ❤️ by the Zama team**
+## License
+BSD-3-Clause-Clear. See `LICENSE` for details.
